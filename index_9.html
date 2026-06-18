@@ -1,0 +1,914 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>OVERWRITE — 確定して奪い合う陣取り</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=DotGothic16&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#13151e; --bg2:#1b1e2b; --panel:#1f2333; --line:#343a50; --cell:#262b3c;
+    --you:#ffb454; --you-deep:#c9802f; --cpu:#46c9c1; --cpu-deep:#2c8f89;
+    --neu1:#4a5169; --neu2:#363c50; --accent:#c45bff; --accent-soft:#3a2a52;
+    --lock:#ffffff; --ink:#eceefb; --muted:#878da6;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0; color:var(--ink); font-family:"Zen Kaku Gothic New",system-ui,sans-serif;
+    background:radial-gradient(1200px 640px at 50% -12%, #20243a 0%, var(--bg) 62%) fixed;}
+  body{min-height:100dvh; display:flex; flex-direction:column; align-items:center; padding:16px 12px 40px; gap:12px;}
+  .pixel{font-family:"DotGothic16",monospace; letter-spacing:.4px;}
+
+  header{width:100%; max-width:920px; display:flex; align-items:baseline; justify-content:space-between; gap:12px; flex-wrap:wrap;}
+  h1{margin:0; font-size:clamp(26px,5.6vw,42px); font-family:'Cinzel',serif; font-weight:700; letter-spacing:3px;}
+  h1 .o{color:var(--you); text-shadow:0 0 7px rgba(255,180,84,.9), 0 0 18px rgba(255,180,84,.5)}
+  h1 .w{color:var(--cpu); text-shadow:0 0 7px rgba(70,201,193,.9), 0 0 18px rgba(70,201,193,.5)}
+  .tag{color:var(--muted); font-size:12.5px; max-width:48ch;}
+
+  .bar{width:100%; max-width:920px; display:flex; gap:8px; align-items:stretch; flex-wrap:wrap;}
+  .pill{background:var(--bg2); border:1px solid var(--line); border-radius:10px; padding:7px 12px; display:flex; align-items:center; gap:8px;}
+  .pill .who{font-size:11px; color:var(--muted)} .pill .num{font-size:22px}
+  .pill .lk{font-size:11px; color:var(--muted); margin-left:2px}
+  .pill.you{border-color:var(--you-deep)} .pill.you .num{color:var(--you)}
+  .pill.cpu{border-color:var(--cpu-deep)} .pill.cpu .num{color:var(--cpu)}
+  .pill.neu .num{color:var(--neu1)}
+  .pill.meta{margin-left:auto; color:var(--muted); font-size:12px; flex-direction:column; gap:1px; align-items:flex-end;}
+  .pill.meta b{color:var(--ink)}
+  .dot{width:14px;height:14px;border-radius:50%}
+  .dot.you{background:var(--you)} .dot.cpu{background:var(--cpu)} .dot.neu{background:var(--neu1)}
+
+  .wrap{width:100%; max-width:920px; display:grid; grid-template-columns:minmax(0,1fr) 178px; gap:14px; align-items:start;}
+  @media (max-width:700px){ .wrap{grid-template-columns:1fr;} }
+
+  .boardpanel{position:relative; background:linear-gradient(160deg,#23273a,#191c28); border:1px solid #4a4327; border-radius:14px; padding:14px; box-shadow:0 18px 50px -28px #000, inset 0 0 0 2px #262b40, inset 0 0 0 3px rgba(255,226,160,.22);}
+  .board{position:relative; display:grid; grid-template-columns:repeat(7,1fr); gap:5px; aspect-ratio:1/1; width:100%;}
+  .c{position:relative; background:linear-gradient(150deg,#2c3144,#20253460); border-radius:6px; display:flex; align-items:center; justify-content:center; user-select:none; transition:box-shadow .12s; box-shadow:inset 0 1px 0 rgba(255,255,255,.04), inset 0 0 0 1px rgba(255,226,160,.05);}
+  .c.legal{cursor:pointer; box-shadow:inset 0 0 0 2px var(--you-deep);}
+  .c.legal:hover{box-shadow:inset 0 0 0 2px var(--you);}
+  .c.range{box-shadow:inset 0 0 0 2px var(--accent-soft);}
+  .c.range.hit{box-shadow:inset 0 0 0 2px var(--accent);}
+  .c.aim{box-shadow:inset 0 0 0 3px var(--accent);}
+  .c.firing{box-shadow:inset 0 0 0 3px var(--accent), 0 0 16px -2px var(--accent);}
+  .c:focus-visible{outline:3px solid #fff; outline-offset:2px;}
+  .stone{position:relative; width:78%;height:78%;border-radius:50%; transition:background .2s;}
+  .stone.you{background:radial-gradient(circle at 35% 30%, #ffd596, var(--you) 55%, var(--you-deep));}
+  .stone.cpu{background:radial-gradient(circle at 35% 30%, #8fe9e3, var(--cpu) 55%, var(--cpu-deep));}
+  .stone.you,.stone.cpu{box-shadow:0 3px 7px -2px #000b, inset 0 2px 3px rgba(255,255,255,.45), inset 0 -3px 6px rgba(0,0,0,.38);}
+  .emblem{position:absolute; inset:20%; pointer-events:none; filter:drop-shadow(0 1px 0 rgba(255,255,255,.32));}
+  .emblem svg{width:100%;height:100%;display:block}
+  .emblem svg path{fill:none; stroke:rgba(0,0,0,.42); stroke-width:2.5; stroke-linecap:round; stroke-linejoin:round}
+  .emblem.fill svg path{fill:rgba(0,0,0,.38); stroke:none}
+  .stone.neu{width:46%;height:46%; background:radial-gradient(circle at 40% 35%, var(--neu1), var(--neu2)); opacity:.8;}
+  .stone.lock{box-shadow:0 0 0 2px #14161f, 0 0 0 4px #ffe2a0, 0 0 14px 0 rgba(255,226,160,.6), 0 3px 7px -2px #000b, inset 0 2px 3px rgba(255,255,255,.5), inset 0 -3px 6px rgba(0,0,0,.4);}
+  .lockfx{position:absolute; inset:0; pointer-events:none; z-index:4;}
+  .lockfx i{position:absolute; inset:10%; border-radius:50%; border:2px solid #ffe7b0; opacity:0; animation:sealring .6s ease-out forwards;}
+  .lockfx i:nth-child(2){animation-delay:.09s; border-color:#fff4d6;}
+  .lockfx b{position:absolute; inset:28%; border-radius:50%; background:radial-gradient(circle,#fff7e0,#ffe2a0 55%,transparent 72%); animation:sealflash .5s ease-out forwards;}
+  @keyframes sealring{0%{transform:scale(.35);opacity:0}22%{opacity:1}100%{transform:scale(1.85);opacity:0}}
+  @keyframes sealflash{0%{transform:scale(.2);opacity:.95}100%{transform:scale(1.5);opacity:0}}
+  .c{perspective:600px;}
+  .lockfx s{position:absolute; left:50%; top:50%; width:2px; height:9px; margin:-5px 0 0 -1px; border-radius:2px; background:linear-gradient(#fff7e0,#ffce6a); animation:spark .55s ease-out forwards;}
+  @keyframes spark{0%{transform:rotate(var(--a)) translateY(-2px) scaleY(.5);opacity:1}100%{transform:rotate(var(--a)) translateY(-22px) scaleY(1.1);opacity:0}}
+  .stamp{position:absolute; inset:4%; pointer-events:none; z-index:5; animation:stampPop .6s ease-out forwards;}
+  .stamp svg{width:100%;height:100%}
+  @keyframes stampPop{0%{transform:scale(1.55) rotate(-8deg);opacity:0}28%{opacity:.95}100%{transform:scale(.9) rotate(0);opacity:0}}
+  .ripple{position:absolute; inset:14%; border-radius:50%; border:2px solid var(--rc,#fff); pointer-events:none; z-index:2; animation:ripplefx .5s ease-out forwards;}
+  @keyframes ripplefx{0%{transform:scale(.3);opacity:.85}100%{transform:scale(1.7);opacity:0}}
+  .firefx{position:absolute; inset:0; border-radius:6px; pointer-events:none; z-index:3; box-shadow:0 0 0 2px var(--fc,#c45bff), 0 0 16px 1px var(--fc,#c45bff); animation:firering .45s ease-out forwards;}
+  @keyframes firering{0%{transform:scale(.7);opacity:0}30%{opacity:1}100%{transform:scale(1.28);opacity:0}}
+  .stone.spin{animation:spinflip .5s ease-in-out;}
+  @keyframes spinflip{0%{transform:rotateY(0) scale(1)}50%{transform:rotateY(90deg) scale(1.2)}100%{transform:rotateY(0) scale(1)}}
+  .stealfx{position:absolute; inset:0; border-radius:50%; pointer-events:none; z-index:4; box-shadow:0 0 0 2px var(--accent),0 0 20px 3px var(--accent); animation:firering .55s ease-out forwards;}
+  .meander{height:9px; margin:0 2px 8px; background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='9'%3E%3Cpath d='M1 7V2H10V5H5' fill='none' stroke='%23ffe2a0' stroke-width='1.3'/%3E%3C/svg%3E") repeat-x center; opacity:.55; filter:drop-shadow(0 0 3px rgba(255,226,160,.5));}
+  .meander.bot{margin:8px 2px 0; transform:scaleY(-1);}
+  .combo{position:absolute; left:50%; top:46%; transform:translate(-50%,-50%); z-index:20; pointer-events:none; font-family:'Cinzel',serif; font-weight:700; color:#ffe7b0; font-size:clamp(20px,4.6vw,30px); letter-spacing:1px; text-shadow:0 0 10px rgba(255,226,160,.9),0 0 26px rgba(255,200,90,.7); white-space:nowrap; animation:comboPop 1.05s ease-out forwards;}
+  .combo .n{font-size:1.5em; vertical-align:-2px;}
+  @keyframes comboPop{0%{opacity:0;transform:translate(-50%,-50%) scale(.4)}18%{opacity:1;transform:translate(-50%,-50%) scale(1.15)}32%{transform:translate(-50%,-50%) scale(1)}80%{opacity:1}100%{opacity:0;transform:translate(-50%,-62%) scale(1)}}
+  .combobeam{position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:6; overflow:visible;}
+  .combobeam polyline{fill:none; stroke:#ffe7b0; stroke-width:3; stroke-linecap:round; stroke-linejoin:round; filter:drop-shadow(0 0 6px rgba(255,226,160,.9)); animation:beamPulse .85s ease-out forwards;}
+  @keyframes beamPulse{0%{opacity:0}20%{opacity:1}100%{opacity:0}}
+  .boardflash{position:absolute; inset:0; z-index:4; pointer-events:none; border-radius:14px; background:radial-gradient(circle at 50% 50%, rgba(255,226,160,.32), transparent 66%); animation:bflash .5s ease-out forwards;}
+  @keyframes bflash{0%{opacity:0}25%{opacity:1}100%{opacity:0}}
+  .combo.reflect{color:#e9b8ff; text-shadow:0 0 10px rgba(196,91,255,.95),0 0 26px rgba(196,91,255,.7)}
+  .boardflash.reflect{background:radial-gradient(circle at 50% 50%, rgba(196,91,255,.34), transparent 66%)}
+  .commit{position:absolute; inset:9%; z-index:9; pointer-events:none; perspective:600px; animation:commitIn .22s ease-out;}
+  @keyframes commitIn{0%{transform:scale(.3);opacity:0}100%{transform:scale(1);opacity:1}}
+  .commit .flip{position:absolute; inset:0; transform-style:preserve-3d; transition:transform .42s cubic-bezier(.4,1.3,.5,1); transform:rotateY(0)}
+  .commit.open .flip{transform:rotateY(180deg)}
+  .commit .face{position:absolute; inset:0; border-radius:50%; backface-visibility:hidden; -webkit-backface-visibility:hidden; display:flex; align-items:center; justify-content:center}
+  .commit .back{background:radial-gradient(circle at 38% 32%,#3b4059,#1c1f2e 72%); box-shadow:0 0 0 2px rgba(255,226,160,.55),0 3px 8px -2px #000c, inset 0 2px 3px rgba(255,255,255,.18); animation:commitBreath 1.05s ease-in-out infinite}
+  @keyframes commitBreath{0%,100%{box-shadow:0 0 0 2px rgba(255,226,160,.4),0 3px 8px -2px #000c, inset 0 2px 3px rgba(255,255,255,.18)}50%{box-shadow:0 0 0 2px rgba(255,226,160,.9),0 0 16px rgba(255,226,160,.55),0 3px 8px -2px #000c, inset 0 2px 3px rgba(255,255,255,.18)}}
+  .commit .back::after{content:""; width:52%; height:52%; opacity:.85; background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cpath d='M20 6C13 11 13 29 20 34M20 6C27 11 27 29 20 34' fill='none' stroke='%23ffe2a0' stroke-width='2'/%3E%3C/svg%3E") center/contain no-repeat; filter:drop-shadow(0 0 3px rgba(255,226,160,.5))}
+  .commit .front{transform:rotateY(180deg)}
+  .commit .front.you{background:radial-gradient(circle at 35% 30%,#ffd596,var(--you) 55%,var(--you-deep)); box-shadow:0 0 0 2px rgba(255,226,160,.6),0 0 16px rgba(255,180,84,.6),inset 0 2px 3px rgba(255,255,255,.45)}
+  .commit .front.cpu{background:radial-gradient(circle at 35% 30%,#8fe9e3,var(--cpu) 55%,var(--cpu-deep)); box-shadow:0 0 0 2px rgba(150,235,230,.6),0 0 16px rgba(70,201,193,.6),inset 0 2px 3px rgba(255,255,255,.45)}
+  .commit .emb{position:absolute; width:58%; height:58%}
+  .commit .emb svg{width:100%;height:100%}
+  .commit .emb svg path{fill:none;stroke:rgba(0,0,0,.45);stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+  .commit .emb.fill svg path{fill:rgba(0,0,0,.42);stroke:none}
+  .commit .dir{position:absolute; bottom:0; right:3px; font-family:"DotGothic16",monospace; font-size:11px; color:#fff7e0; text-shadow:0 0 4px #000}
+  .snd{background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:10px; padding:7px 12px; cursor:pointer; font-size:15px}
+  .snd:hover{border-color:var(--you-deep)}
+  .stone.pop{animation:pop .32s}
+  @keyframes pop{0%{transform:scale(.3)}60%{transform:scale(1.14)}100%{transform:scale(1)}}
+  .tagx{position:absolute; top:-7px; right:-3px; font-size:9px; padding:1px 4px; border-radius:5px; background:var(--accent); color:#fff; animation:pop .3s; white-space:nowrap; z-index:3;}
+  .tagx.neu{background:var(--neu1); color:#10121a;}
+  .tagx.lock{background:#ffe1ad; color:#3a2a08;}
+  .tagx.reflect{background:var(--accent); color:#fff; box-shadow:0 0 10px rgba(196,91,255,.8); font-size:10px;}
+  .aimArrow{position:absolute; width:30px; height:30px; border-radius:8px; background:var(--accent); color:#fff; display:flex; align-items:center; justify-content:center; font-size:16px; cursor:pointer; z-index:6; border:none; box-shadow:0 5px 14px -3px var(--accent);}
+  .aimArrow:hover{filter:brightness(1.18)}
+
+  .ladder{background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:11px;}
+  .ladder h2{margin:0 0 3px; font-size:12.5px; color:var(--muted); font-weight:400}
+  .ladder .note{font-size:10.5px; color:var(--muted); margin:0 0 9px; line-height:1.5}
+  .rung{display:grid; grid-template-columns:1fr 28px 1fr; align-items:center; gap:5px; padding:5px 0; border-top:1px solid var(--line);}
+  .rung .pr{text-align:center; font-size:12px; color:var(--muted); background:var(--bg2); border-radius:6px; padding:3px 0;}
+  .rung.lit .pr{color:#fff; background:var(--accent)}
+  .slot{height:26px; display:flex; align-items:center}
+  .slot.you{justify-content:flex-end} .slot.cpu{justify-content:flex-start}
+  .chipmini{padding:2px 6px; border-radius:6px; background:var(--bg2); border:1px solid var(--line); font-size:10.5px}
+  .slot.you .chipmini{border-color:var(--you-deep); color:var(--you)}
+  .slot.cpu .chipmini{border-color:var(--cpu-deep); color:var(--cpu)}
+  .chipmini.wasted{opacity:.34; text-decoration:line-through}
+
+  .palette{width:100%; max-width:920px}
+  .palette .lbl{font-size:11.5px; color:var(--muted); margin:0 0 7px; line-height:1.5}
+  .chips{display:grid; grid-template-columns:repeat(5,1fr); gap:8px}
+  @media (max-width:560px){ .chips{gap:6px} }
+  .chip{background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:10px 4px 9px; cursor:pointer; text-align:center; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; gap:6px; transition:transform .12s, border-color .12s, background .12s}
+  .chip:hover{transform:translateY(-2px); border-color:var(--you-deep)}
+  .chip.sel{border-color:var(--you); background:#2a2336; box-shadow:0 0 0 1px var(--you)}
+  .chip:focus-visible{outline:3px solid #fff; outline-offset:2px}
+  .glyphbox{height:44px; display:flex; align-items:center; justify-content:center}
+  .glyph{display:grid; gap:2px}
+  .gx{width:7px; height:7px; border-radius:2px}
+  .gx.rng{background:var(--accent)} .gx.ctr{background:var(--you)} .gx.off{background:#00000026}
+  .chip .nm{font-size:12.5px; line-height:1} .chip .pr{font-size:10px; color:var(--muted)}
+  .chip .pr b{color:var(--accent); font-family:"DotGothic16",monospace}
+  @media (max-width:560px){ .chip{padding:8px 2px 7px} .glyph{width:30px} .chip .nm{font-size:11px} }
+  .chiphint{margin-top:10px; min-height:32px; font-size:12px; color:var(--muted); line-height:1.5; text-align:center}
+  .chiphint b{color:#ffe1ad}
+
+  .status{width:100%; max-width:920px; min-height:22px; font-size:13.5px; text-align:center}
+  .status .y{color:var(--you)} .status .c{color:var(--cpu)} .status .a{color:var(--accent)} .status .n{color:var(--neu1)} .status .l{color:#ffe1ad}
+
+  .controls{display:flex; gap:10px; justify-content:center; width:100%; max-width:920px}
+  button.act{font-family:"DotGothic16",monospace; background:transparent; color:var(--muted); border:1px solid var(--line); padding:8px 16px; border-radius:10px; cursor:pointer; font-size:14px}
+  button.act.primary{background:var(--you); color:#241a08; border:none}
+  button.act:focus-visible{outline:3px solid #fff; outline-offset:2px}
+
+  details.rules{width:100%; max-width:920px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:2px 14px}
+  details.rules summary{cursor:pointer; padding:9px 0; color:var(--muted); font-size:12.5px}
+  details.rules p{font-size:12.5px; line-height:1.7; color:#cfd3e6}
+  details.rules b{color:var(--ink)}
+
+  .overlay{position:fixed; inset:0; background:#0b0d14cc; display:none; align-items:center; justify-content:center; padding:20px; z-index:9}
+  .overlay.on{display:flex}
+  .modal{background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:24px 26px; text-align:center; max-width:330px}
+  .modal .big{font-size:28px; margin:0 0 4px} .modal .sub{color:var(--muted); margin:0 0 16px}
+  .handoff{position:fixed; inset:0; z-index:200; display:none; align-items:center; justify-content:center; background:rgba(8,9,14,.975); -webkit-backdrop-filter:blur(5px); backdrop-filter:blur(5px); text-align:center; padding:24px}
+  .handoff.on{display:flex}
+  .handoff .card{max-width:340px}
+  .handoff .who{font-size:15px; letter-spacing:1px; margin-bottom:4px; font-family:"DotGothic16",monospace}
+  .handoff h2{font-family:'Cinzel',serif; font-size:30px; margin:0 0 10px; text-shadow:0 0 12px rgba(255,226,160,.4)}
+  .handoff p{color:var(--muted); font-size:13px; margin:0 0 22px; line-height:1.7}
+  .handoff button{font-size:16px; padding:13px 30px; border-radius:12px; border:1px solid var(--line); background:var(--panel); color:var(--ink); cursor:pointer; font-family:"DotGothic16",monospace}
+  .handoff button:hover{border-color:var(--you-deep)}
+  .handoff input{font-size:20px; text-align:center; letter-spacing:4px; text-transform:uppercase; padding:11px; border-radius:10px; border:1px solid var(--line); background:#0e1018; color:var(--ink); width:170px; margin-bottom:10px; font-family:"DotGothic16",monospace}
+  .handoff button.ghost{background:transparent; border-color:transparent; color:var(--muted); font-size:13px}
+  .handoff #lbMsg{margin-top:14px; font-size:13px; color:var(--muted); min-height:20px; line-height:1.6}
+  .handoff .or{margin:14px 0; color:var(--muted); font-size:12px}
+
+  @media (prefers-reduced-motion:reduce){ *{animation:none!important; transition:none!important} }
+</style>
+</head>
+<body>
+<header>
+  <h1><span class="o">OVER</span><span class="w">WRITE</span></h1>
+  <p class="tag">塗って奪い、<b style="color:#ffe1ad">補強して確定</b>させる7×7の陣取り。広げるか固めるかの配分が勝負。<span style="opacity:.6">（名前は仮）</span></p>
+</header>
+
+<div class="bar">
+  <div class="pill you"><span class="dot you"></span><span class="who pixel" id="lblYou">YOU</span><span class="num pixel" id="sYou">0</span><span class="lk" id="lYou">確0</span></div>
+  <div class="pill cpu"><span class="dot cpu"></span><span class="who pixel" id="lblCpu">CPU</span><span class="num pixel" id="sCpu">0</span><span class="lk" id="lCpu">確0</span></div>
+  <div class="pill neu"><span class="dot neu"></span><span class="who pixel">中立</span><span class="num pixel" id="sNeu">49</span></div>
+  <div class="pill meta"><span>ターン <b id="round">1</b> / <span id="rounds">12</span></span><span id="metaTurn" style="display:none">手番 <b id="dealer">—</b></span></div>
+</div>
+
+<div class="wrap">
+  <div class="boardpanel"><div class="meander"></div><div class="board" id="board"></div><div class="meander bot"></div></div>
+  <aside class="ladder">
+    <h2 class="pixel">解決ラダー</h2>
+    <p class="note">上ほど先に動く＝広いが上書きされやすい。下ほど後で動く＝狭いが残る。</p>
+    <div id="ladder"></div>
+  </aside>
+</div>
+
+<div class="palette">
+  <p class="lbl">コマを選ぶ（マゼンタ＝塗り替える範囲）。<b style="color:#ffe1ad">自分のマスに置いて補強すると、塗り重ねた自陣（レイならビーム路）が確定</b>。確定マスは奪われない。</p>
+  <div class="chips" id="chips"></div>
+  <div class="chiphint" id="chiphint"></div>
+</div>
+
+<div class="status pixel" id="status">コマを選んで、中立か自分のマスに置こう。</div>
+
+<div class="controls"><button class="act" id="reset">最初から</button><button class="snd" id="mode">対CPU</button><button class="snd" id="snd" aria-label="音 オン・オフ">🔊</button></div>
+
+<details class="rules">
+  <summary>ルール</summary>
+  <p>
+    盤は最初すべて<b style="color:var(--neu1)">中立</b>。毎ターン、自分（<b style="color:var(--you)">アンバー</b>）とCPU（<b style="color:var(--cpu)">シアン</b>）が<b>同時に・伏せて</b>「コマ1種＋置くマス」を選ぶ。置けるのは<b>中立マスか自分のマス</b>（敵マスには直接置けない）。<b>レイ</b>だけは置いたあと<b>向き</b>を選び、その方向へ<b>幅2マス・長さ3マスのビーム</b>を撃つ。<br>
+    <b style="color:#ffe1ad">確定（ロック）</b>：自分のマスに置いて<b>補強</b>すると、そのコマが<b>発動した時</b>に、塗り重ねた自陣マス（レイなら通ったビーム路）すべてが終了まで確定。確定マスは<b>塗り替え・寝返り・中和すべて無効</b>。新しく取った中立・敵マスは未確定（まだ奪える）。<b style="color:var(--accent)">ロックは"発動時"なので、補強しても発動前に高優先度のコマに奪われることがある</b>＝寝返りの読み合い。<br>
+    <b style="color:#ffe1ad">アンカー</b>だけは<b>置いた瞬間に即確定</b>（レイより速い）。さらに——<b style="color:var(--accent)">レイのビームがアンカーに当たると「反射」してレイごと奪う</b>。外せば小さいが、刺されば大逆転の劇薬。<br>
+    両者オープンしたら<b>優先度の高いコマから順に解決</b>。各コマは<b>範囲内の未確定の中立・敵マスを自分の色に塗り替える</b>。後に解決したコマは先に塗ったマスを<b>上書き</b>できる。解決前に未確定の自マスが敵に塗られると、そのコマは<b style="color:var(--accent)">敵のものとして</b>発動する（寝返り）。確定すればその同じターンの寝返りからも守れる。<br>
+    <b>同じマスを取り合ったら優先度が低いほうが取得</b>。<b>同じコマ同士をぶつけると、重なった未確定部は中立に戻る</b>。<br>
+    規定ターン後、自分の色が多いほうの勝ち（確定・未確定どちらも1マス）。
+  </p>
+</details>
+
+<div class="overlay" id="overlay"><div class="modal">
+  <h2 class="big pixel" id="resTitle">—</h2><p class="sub" id="resSub"></p>
+  <button class="act primary" id="again">もう一度</button>
+</div></div>
+
+<div class="handoff" id="handoff"></div>
+<div class="handoff" id="lobby"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script>
+const SIZE=7, CELLS=SIZE*SIZE, ROUNDS=8, RAY_LEN=3, LOCKW=0.7;
+// ============ Firebase 設定：自分のプロジェクトの値に置き換える ============
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyDsmu9FLNzgr6A4wQVYIPT1IezwbxIWHgE",
+  authDomain: "overwritetest-126f5.firebaseapp.com",
+  databaseURL: "https://overwritetest-126f5-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "overwritetest-126f5",
+  appId: "1:914006841765:web:bea0ff6bedb9d94399304c"
+};
+// ========================================================================
+const idx=(r,c)=>r*SIZE+c, inb=(r,c)=>r>=0&&r<SIZE&&c>=0&&c<SIZE, other=o=>o==='P'?'C':'P';
+const PIECES={
+  ray:   {name:'レイ',   pr:5, desc:'向きへ幅2・長3のビーム。最速で発動。アンカーに当てると反射で奪われる。'},
+  blast: {name:'ブラスト',pr:4, desc:'まわり8マス。'},
+  cross: {name:'クロス', pr:3, desc:'ナナメ2マスまで。'},
+  plus:  {name:'プラス', pr:2, desc:'タテヨコ2マスまで。'},
+  anchor:{name:'アンカー',pr:1, desc:'置いた瞬間に即確定（レイより速い）。ビームを受けると反射してレイを奪う劇薬。'},
+};
+const ORDER=['ray','blast','cross','plus','anchor'];
+const EMBLEM={
+  ray:'<svg viewBox="0 0 24 24"><path d="M6 5 L12 12 L6 19 M12 5 L18 12 L12 19"/></svg>',
+  blast:'<svg viewBox="0 0 24 24"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.6 2.6M15.4 15.4l2.6 2.6M18 6l-2.6 2.6M8.6 15.4l-2.6 2.6"/></svg>',
+  cross:'<svg viewBox="0 0 24 24"><path d="M6 6 L18 18 M18 6 L6 18"/></svg>',
+  plus:'<svg viewBox="0 0 24 24"><path d="M12 5 V19 M5 12 H19"/></svg>',
+  anchor:'<svg viewBox="0 0 24 24"><path d="M12 4 L16 11 L12 20 L8 11 Z"/></svg>',
+};
+const DIRS={up:[-1,0],down:[1,0],left:[0,-1],right:[0,1]};
+const ARROW={up:'↑',down:'↓',left:'←',right:'→'};
+
+function rangeCells(cell,p,dir){
+  const r=(cell/SIZE|0), c=cell%SIZE, o=[];
+  if(p==='ray'){
+    const [dr,dc]=DIRS[dir||'right'], horiz=dc!==0;
+    let r2=r,c2=c;
+    if(horiz){ r2=r+1<=SIZE-1?r+1:r-1; } else { c2=c+1<=SIZE-1?c+1:c-1; }
+    let rr=r,cc=c,steps=0;
+    while(steps<RAY_LEN){ rr+=dr; cc+=dc; if(!inb(rr,cc))break;
+      if(horiz){ o.push(idx(r,cc)); if(r2!==r)o.push(idx(r2,cc)); }
+      else { o.push(idx(rr,c)); if(c2!==c)o.push(idx(rr,c2)); }
+      steps++; }
+  } else if(p==='blast'){ for(let a=-1;a<=1;a++)for(let b=-1;b<=1;b++){ if(!a&&!b)continue; if(inb(r+a,c+b))o.push(idx(r+a,c+b)); } }
+  else if(p==='cross'){ for(let d=1;d<=2;d++)[[-1,-1],[-1,1],[1,-1],[1,1]].forEach(([a,b])=>inb(r+a*d,c+b*d)&&o.push(idx(r+a*d,c+b*d))); }
+  else if(p==='plus'){ for(let d=1;d<=2;d++)[[-1,0],[1,0],[0,-1],[0,1]].forEach(([a,b])=>inb(r+a*d,c+b*d)&&o.push(idx(r+a*d,c+b*d))); }
+  else { [[-1,0],[1,0],[0,-1],[0,1]].forEach(([a,b])=>inb(r+a,c+b)&&o.push(idx(r+a,c+b))); }
+  return o;
+}
+function paint(nb,nl,m,isRe){
+  const owner=nb[m.cell], enemy=other(owner), claimed=[], locks=[];
+  rangeCells(m.cell,m.pieceId,m.dir).forEach(t=>{ if(nl[t])return;
+    if(nb[t]==='N'||nb[t]===enemy){ nb[t]=owner; claimed.push(t); }
+    else if(nb[t]===owner && isRe){ nl[t]=true; locks.push(t); } });
+  return {claimed, locks};
+}
+function resolveTurn(board,locked,moves){
+  const nb=board.slice(), nl=locked.slice(), pre=board.slice(), survivors=[], wasted=[], events=[];
+  const samePiece=moves[0].pieceId===moves[1].pieceId, sameCell=moves[0].cell===moves[1].cell;
+  if(sameCell){
+    if(samePiece){ nb[moves[0].cell]='N'; nl[moves[0].cell]=false; wasted.push(moves[0],moves[1]); events.push({type:'annihilate',cells:[moves[0].cell]}); return {board:nb,locked:nl,survivors,wasted,events}; }
+    const lower=PIECES[moves[0].pieceId].pr<PIECES[moves[1].pieceId].pr?moves[0]:moves[1];
+    survivors.push(lower); wasted.push(lower===moves[0]?moves[1]:moves[0]);
+  } else survivors.push(moves[0],moves[1]);
+  survivors.forEach(m=>{ nb[m.cell]=m.owner; if(m.pieceId==='anchor') nl[m.cell]=true; });
+  function resolveOne(m){
+    let reflected=false;
+    if(m.pieceId==='ray'){ const em=survivors.find(s=>s!==m);
+      if(em && em.owner!==m.owner && em.pieceId==='anchor'){ const beam=rangeCells(m.cell,'ray',m.dir); if(beam.indexOf(em.cell)>=0){ nb[m.cell]=em.owner; reflected=true; } } }
+    const stillOwn=nb[m.cell]===m.owner, wasRe=pre[m.cell]===m.owner, lockFoot=wasRe&&stillOwn;
+    const r=paint(nb,nl,m,lockFoot); let locks=r.locks;
+    if(wasRe&&stillOwn&&m.pieceId!=='anchor'){ nl[m.cell]=true; locks=locks.concat([m.cell]); }
+    events.push({type:'paint',owner:m.owner,resolvedOwner:nb[m.cell],cell:m.cell,pieceId:m.pieceId,dir:m.dir,paints:r.claimed,locks:locks,stolen:nb[m.cell]!==m.owner,reflected:reflected});
+  }
+  if(survivors.length===1){ resolveOne(survivors[0]); }
+  else if(samePiece){
+    const a=survivors[0], b=survivors[1], ra=rangeCells(a.cell,a.pieceId,a.dir), rb=rangeCells(b.cell,b.pieceId,b.dir);
+    const aRe=pre[a.cell]===a.owner, bRe=pre[b.cell]===b.owner;
+    const setB=new Set(rb), overlap=ra.filter(x=>setB.has(x)), ov=new Set(overlap), snap=nb.slice(), pA=[],pB=[],lA=[],lB=[];
+    ra.forEach(t=>{ if(!ov.has(t)&&!nl[t]){const v=snap[t]; if(v==='N'||v===other(a.owner)){nb[t]=a.owner;pA.push(t);} else if(v===a.owner&&aRe){nl[t]=true;lA.push(t);}} });
+    rb.forEach(t=>{ if(!ov.has(t)&&!nl[t]){const v=snap[t]; if(v==='N'||v===other(b.owner)){nb[t]=b.owner;pB.push(t);} else if(v===b.owner&&bRe){nl[t]=true;lB.push(t);}} });
+    overlap.forEach(t=>{ if(!nl[t])nb[t]='N'; });
+    if(aRe&&nb[a.cell]===a.owner){nl[a.cell]=true;lA.push(a.cell);}
+    if(bRe&&nb[b.cell]===b.owner){nl[b.cell]=true;lB.push(b.cell);}
+    events.push({type:'paint',owner:a.owner,cell:a.cell,pieceId:a.pieceId,paints:pA,locks:lA});
+    events.push({type:'paint',owner:b.owner,cell:b.cell,pieceId:b.pieceId,paints:pB,locks:lB});
+    events.push({type:'neutralize',cells:overlap.filter(t=>!nl[t])});
+  } else {
+    survivors.slice().sort((x,y)=>PIECES[y.pieceId].pr-PIECES[x.pieceId].pr).forEach(m=>resolveOne(m));
+  }
+  return {board:nb,locked:nl,survivors,wasted,events};
+}
+
+// ---- CPU (lock-aware: predict opponent, best-respond after resolution) ----
+function evalPos(board,locked,me){ let s=0; for(let i=0;i<CELLS;i++){ if(board[i]===me){ s+=1; if(locked[i])s+=LOCKW; } } return s; }
+function legalCells(board,me){ const o=[]; board.forEach((v,i)=>{ if(v==='N'||v===me)o.push(i); }); return o; }
+function naive(board,locked,me){
+  const cells=legalCells(board,me); if(!cells.length)return null; let best=[],bs=-1e9;
+  for(const c of cells)for(const p of ORDER){ const dirs=(p==='ray')?['up','down','left','right']:[undefined];
+    for(const dir of dirs){ const nb=board.slice(),nl=locked.slice(); const re=board[c]===me; nb[c]=me; if(re||p==='anchor')nl[c]=true; paint(nb,nl,{owner:me,cell:c,pieceId:p,dir},re);
+      const s=evalPos(nb,nl,me); if(s>bs){bs=s;best=[{owner:me,cell:c,pieceId:p,dir}];}else if(s===bs)best.push({owner:me,cell:c,pieceId:p,dir}); } }
+  return best[Math.floor(Math.random()*best.length)];
+}
+function chooseCPU(board,locked){
+  const me='C', opp=other(me), om=naive(board,locked,opp);
+  const cells=legalCells(board,me); if(!cells.length)return null; let best=[],bs=-1e9;
+  for(const c of cells)for(const p of ORDER){ const dirs=(p==='ray')?['up','down','left','right']:[undefined];
+    for(const dir of dirs){ const mine={owner:me,cell:c,pieceId:p,dir}; let R;
+      if(om){ R=resolveTurn(board,locked,[mine,om]); }
+      else { const nb=board.slice(),nl=locked.slice(); const re=board[c]===me; nb[c]=me; if(re||p==='anchor')nl[c]=true; paint(nb,nl,mine,re); R={board:nb,locked:nl}; }
+      const s=evalPos(R.board,R.locked,me); if(s>bs){bs=s;best=[mine];}else if(s===bs)best.push(mine); } }
+  return best[Math.floor(Math.random()*best.length)];
+}
+
+// ---------- UI ----------
+let gameMode='cpu'; // 'cpu' | 'hot' | 'online'
+const net={ app:null, db:null, auth:null, uid:null, roomRef:null, room:null, side:null, gen:1, turnRef:null, resolving:false };
+let state={ board:Array(CELLS).fill('N'), locked:Array(CELLS).fill(false), origin:Array(CELLS).fill(null), selected:null, aiming:null, phase:'select', round:1, dealer:'P', cur:'P', pending:null };
+const ACT=()=> gameMode==='online' ? net.side : gameMode==='hot' ? state.cur : 'P';
+const PNAME=o=> o==='P'?'プレイヤー1':'プレイヤー2';
+const $=s=>document.querySelector(s);
+const boardEl=$('#board'), chipsEl=$('#chips'), ladderEl=$('#ladder');
+const wait=ms=>new Promise(r=>setTimeout(r,ms));
+const reduce=matchMedia('(prefers-reduced-motion:reduce)').matches;
+let actx=null, master=null, reverb=null, wetGain=null, muted=false;
+function makeIR(dur,decay){ const a=actx, n=Math.floor(a.sampleRate*dur), buf=a.createBuffer(2,n,a.sampleRate);
+  for(let ch=0;ch<2;ch++){ const d=buf.getChannelData(ch); for(let i=0;i<n;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/n,decay); } return buf; }
+function audio(){
+  if(!actx){ try{ actx=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ actx=null; return null; }
+    master=actx.createGain(); master.gain.value=0.6;
+    const comp=actx.createDynamicsCompressor(); comp.threshold.value=-18; comp.ratio.value=4;
+    master.connect(comp); comp.connect(actx.destination);
+    reverb=actx.createConvolver(); reverb.buffer=makeIR(1.8,2.4);
+    wetGain=actx.createGain(); wetGain.gain.value=0.85; reverb.connect(wetGain); wetGain.connect(comp);
+  }
+  if(actx.state==='suspended') actx.resume(); return actx;
+}
+function voice(o){
+  const a=audio(); if(!a||muted) return; const t=a.currentTime;
+  const dur=o.dur||0.2, vol=o.vol||0.2, atk=o.atk||0.01, rel=o.rel||dur;
+  const g=a.createGain(); g.gain.setValueAtTime(0.0001,t);
+  g.gain.exponentialRampToValueAtTime(vol,t+atk); g.gain.exponentialRampToValueAtTime(0.0001,t+atk+rel);
+  let out=g;
+  if(o.filter){ const f=a.createBiquadFilter(); f.type=o.filterType||'lowpass'; f.frequency.setValueAtTime(o.filter,t);
+    if(o.filterTo) f.frequency.exponentialRampToValueAtTime(Math.max(60,o.filterTo),t+dur); f.Q.value=o.q||1; g.connect(f); out=f; }
+  out.connect(master);
+  if(o.send){ const s=a.createGain(); s.gain.value=o.send; out.connect(s); s.connect(reverb); }
+  const fs=o.freqs||[o.freq||440];
+  fs.forEach((fr,i)=>{ const osc=a.createOscillator(); osc.type=o.type||'sine'; osc.frequency.setValueAtTime(fr,t);
+    if(o.slideTo) osc.frequency.exponentialRampToValueAtTime(Math.max(40,o.slideTo*(fr/fs[0])),t+dur);
+    if(o.detune) osc.detune.value=(i-(fs.length-1)/2)*o.detune;
+    osc.connect(g); osc.start(t); osc.stop(t+atk+rel+0.06); });
+}
+function noiseHit(o){
+  const a=audio(); if(!a||muted) return; const t=a.currentTime, dur=o.dur||0.08, n=Math.floor(a.sampleRate*dur);
+  const buf=a.createBuffer(1,n,a.sampleRate), d=buf.getChannelData(0);
+  for(let i=0;i<n;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/n,o.decay||1);
+  const src=a.createBufferSource(); src.buffer=buf; const g=a.createGain(); g.gain.value=o.vol||0.1;
+  const f=a.createBiquadFilter(); f.type=o.filterType||'bandpass'; f.frequency.value=o.freq||1800; f.Q.value=o.q||1;
+  src.connect(f); f.connect(g); g.connect(master);
+  if(o.send){ const s=a.createGain(); s.gain.value=o.send; g.connect(s); s.connect(reverb); }
+  src.start(t);
+}
+function sfx(kind){
+  if(muted) return; const a=audio(); if(!a) return;
+  switch(kind){
+    case 'select': voice({freqs:[660,990],type:'triangle',dur:0.12,vol:0.09,filter:3200,send:0.2}); break;
+    case 'place': voice({freq:175,type:'sine',dur:0.18,vol:0.22,slideTo:115,filter:850,rel:0.18}); noiseHit({freq:1100,dur:0.05,vol:0.05,filterType:'lowpass',send:0.2}); break;
+    case 'commit': voice({freqs:[148,222],type:'triangle',dur:0.24,vol:0.15,filter:680,detune:7,send:0.35,rel:0.24}); break;
+    case 'reveal': voice({freqs:[330,494,659],type:'triangle',dur:0.4,vol:0.11,filter:1100,filterTo:3600,send:0.6,atk:0.06,rel:0.4}); noiseHit({freq:3000,dur:0.3,vol:0.045,filterType:'highpass',decay:0.5,send:0.5}); break;
+    case 'fire': voice({freqs:[523,784],type:'triangle',dur:0.16,vol:0.12,filter:2800,send:0.3}); break;
+    case 'steal': voice({freqs:[300,303,449],type:'sawtooth',dur:0.45,vol:0.15,slideTo:68,filter:2000,filterTo:280,detune:9,q:5,send:0.5,rel:0.45}); noiseHit({freq:450,dur:0.3,vol:0.05,decay:0.4,send:0.4}); break;
+    case 'lock': voice({freqs:[1046,1568,2093],type:'sine',dur:0.26,vol:0.12,filter:6500,send:0.65,atk:0.003,rel:0.26}); noiseHit({freq:4200,dur:0.04,vol:0.07,filterType:'bandpass',q:2,send:0.3}); break;
+    case 'combo': [0,1,2,3].forEach(i=>setTimeout(()=>voice({freqs:[523*Math.pow(1.26,i),523*Math.pow(1.26,i)*1.5],type:'triangle',dur:0.26,vol:0.12,filter:5200,send:0.6,rel:0.26}),i*115)); break;
+    case 'win': [523,659,784,1047].forEach((f,i)=>setTimeout(()=>voice({freqs:[f,f*2],type:'triangle',dur:0.5,vol:0.13,filter:5500,send:0.7,rel:0.5}),i*145)); break;
+    case 'lose': [392,330,262].forEach((f,i)=>setTimeout(()=>voice({freqs:[f,f*1.5],type:'triangle',dur:0.6,vol:0.12,filter:1600,send:0.6,rel:0.6}),i*180)); break;
+    case 'tie': [523,587].forEach((f,i)=>setTimeout(()=>voice({freqs:[f,f*1.5],type:'triangle',dur:0.45,vol:0.11,filter:4000,send:0.6,rel:0.45}),i*180)); break;
+    case 'click': voice({freq:440,type:'triangle',dur:0.07,vol:0.07,filter:2500}); break;
+    case 'reflect': voice({freqs:[1200,1800,2400],type:'sawtooth',dur:0.14,vol:0.12,filter:5500,send:0.45}); setTimeout(()=>sfx('steal'),110); break;
+  }
+}
+
+function localRange(p){
+  if(p==='ray'){ const o=[]; for(let d=1;d<=RAY_LEN;d++){ o.push([0,d]); o.push([1,d]); } return o; }
+  if(p==='blast'){ const o=[]; for(let a=-1;a<=1;a++)for(let b=-1;b<=1;b++) if(a||b) o.push([a,b]); return o; }
+  if(p==='cross'){ const o=[]; for(let d=1;d<=2;d++)[[-1,-1],[-1,1],[1,-1],[1,1]].forEach(([a,b])=>o.push([a*d,b*d])); return o; }
+  if(p==='plus'){ const o=[]; for(let d=1;d<=2;d++)[[-1,0],[1,0],[0,-1],[0,1]].forEach(([a,b])=>o.push([a*d,b*d])); return o; }
+  return [[-1,0],[1,0],[0,-1],[0,1]];
+}
+function miniGlyph(p){
+  const offs=localRange(p); let minr=0,maxr=0,minc=0,maxc=0;
+  offs.forEach(([dr,dc])=>{ minr=Math.min(minr,dr);maxr=Math.max(maxr,dr);minc=Math.min(minc,dc);maxc=Math.max(maxc,dc); });
+  const rows=maxr-minr+1, cols=maxc-minc+1, set=new Set(offs.map(([dr,dc])=>dr+','+dc)); let h='';
+  for(let r=minr;r<=maxr;r++)for(let c=minc;c<=maxc;c++){
+    const isC=(r===0&&c===0), isR=set.has(r+','+c);
+    h+=`<div class="gx ${isC?'ctr':isR?'rng':'off'}"></div>`;
+  }
+  return `<div class="glyphbox"><div class="glyph" style="grid-template-columns:repeat(${cols},7px)">${h}</div></div>`;
+}
+function buildChips(){
+  chipsEl.innerHTML='';
+  ORDER.forEach(p=>{
+    const P=PIECES[p], el=document.createElement('button');
+    el.className='chip'; el.dataset.p=p;
+    el.innerHTML=`${miniGlyph(p)}<div class="nm pixel">${P.name}</div><div class="pr">優先 <b>${P.pr}</b></div>`;
+    el.onclick=()=>selectPiece(p);
+    chipsEl.appendChild(el);
+  });
+}
+function buildBoard(){
+  boardEl.innerHTML='';
+  for(let i=0;i<CELLS;i++){
+    const c=document.createElement('div'); c.className='c'; c.dataset.i=i; c.tabIndex=-1;
+    c.onclick=()=>onCell(i); c.onmouseenter=()=>onHover(i); c.onmouseleave=()=>{ if(!state.aiming)clearRange(); };
+    const s=document.createElement('div'); s.className='stone neu'; c.appendChild(s);
+    boardEl.appendChild(c);
+  }
+}
+function buildLadder(){
+  ladderEl.innerHTML='';
+  [5,4,3,2,1].forEach(pr=>{
+    const row=document.createElement('div'); row.className='rung'; row.dataset.pr=pr;
+    row.innerHTML=`<div class="slot you" data-side="P"></div><div class="pr pixel">P${pr}</div><div class="slot cpu" data-side="C"></div>`;
+    ladderEl.appendChild(row);
+  });
+}
+function paintStone(i, pop){
+  const val=state.board[i], lk=state.locked[i];
+  const cell=boardEl.children[i]; let s=cell.querySelector('.stone');
+  if(!s){ s=document.createElement('div'); cell.appendChild(s); }
+  s.className='stone '+(val==='P'?'you':val==='C'?'cpu':'neu')+(lk?' lock':'');
+  let em=s.querySelector('.emblem'); const o=state.origin[i];
+  if(o && val!=='N'){
+    if(!em){ em=document.createElement('div'); s.appendChild(em); }
+    em.className='emblem'+(o==='anchor'?' fill':''); em.innerHTML=EMBLEM[o];
+  } else if(em){ em.remove(); }
+  if(pop&&!reduce){ s.classList.remove('pop'); void s.offsetWidth; s.classList.add('pop'); }
+}
+function render(){
+  for(let i=0;i<CELLS;i++){
+    boardEl.children[i].classList.remove('legal','range','hit','firing','aim');
+    paintStone(i,false);
+  }
+  if(state.phase==='select'&&state.selected&&!state.aiming){
+    const me=ACT();
+    state.board.forEach((v,i)=>{ if(v==='N'||v===me) boardEl.children[i].classList.add('legal'); });
+  }
+}
+function updateScores(){
+  const y=state.board.filter(x=>x==='P').length, c=state.board.filter(x=>x==='C').length;
+  const ly=state.locked.filter((v,i)=>v&&state.board[i]==='P').length, lc=state.locked.filter((v,i)=>v&&state.board[i]==='C').length;
+  $('#sYou').textContent=y; $('#sCpu').textContent=c; $('#sNeu').textContent=state.board.filter(x=>x==='N').length;
+  $('#lYou').textContent='確'+ly; $('#lCpu').textContent='確'+lc;
+  $('#round').textContent=toRoman(state.round); $('#rounds').textContent=toRoman(ROUNDS);
+}
+const setStatus=h=>$('#status').innerHTML=h;
+
+function selectPiece(p){
+  if(state.phase!=='select')return;
+  cancelAim();
+  state.selected=state.selected===p?null:p;
+  if(state.selected) sfx('select');
+  [...chipsEl.children].forEach(c=>c.classList.toggle('sel',c.dataset.p===state.selected));
+  const hint=$('#chiphint');
+  hint.innerHTML = state.selected
+    ? `<b>${PIECES[state.selected].name}</b> ｜ ${PIECES[state.selected].desc}`
+    : 'コマをタップすると効果と範囲（マゼンタ）が表示されます。';
+  render();
+  const ac=ACT()==='P'?'y':'c';
+  setStatus(state.selected
+    ? (p==='ray'?`<span class="${ac}">レイ</span> を置くマスを選ぶ（あとで向き）。`:`<span class="${ac}">${PIECES[state.selected].name}</span> を置く。<span class="l">自マスに置けば確定</span>。`)
+    : 'コマを選んで、中立か自分のマスに置こう。');
+}
+const clearRange=()=>[...boardEl.children].forEach(c=>c.classList.remove('range','hit'));
+function onHover(i){
+  const me=ACT();
+  if(state.phase!=='select'||!state.selected||state.aiming)return;
+  if(!(state.board[i]==='N'||state.board[i]===me))return;
+  clearRange();
+  rangeCells(i,state.selected,'right').forEach(t=>{
+    const cell=boardEl.children[t]; cell.classList.add('range');
+    if(!state.locked[t]&&(state.board[t]==='N'||state.board[t]===other(me))) cell.classList.add('hit');
+  });
+}
+function onCell(i){
+  const me=ACT();
+  if(state.phase!=='select'||!state.selected)return;
+  if(!(state.board[i]==='N'||state.board[i]===me))return;
+  if(state.selected==='ray'){ enterAim(i); return; }
+  commitMove({owner:me,cell:i,pieceId:state.selected});
+}
+
+function enterAim(cell){
+  if(state.aiming===cell){ cancelAim(); render(); return; }
+  cancelAim();
+  state.aiming=cell;
+  [...boardEl.children].forEach(c=>c.classList.remove('legal','range','hit'));
+  boardEl.children[cell].classList.add('aim');
+  const el=boardEl.children[cell], x=el.offsetLeft, y=el.offsetTop, w=el.offsetWidth, h=el.offsetHeight;
+  const place={ right:[x+w+4, y+h/2, 'translateY(-50%)'], left:[x-4, y+h/2, 'translate(-100%,-50%)'],
+                up:[x+w/2, y-4, 'translate(-50%,-100%)'], down:[x+w/2, y+h+4, 'translateX(-50%)'] };
+  Object.keys(DIRS).forEach(dir=>{
+    if(rangeCells(cell,'ray',dir).length===0) return;
+    const b=document.createElement('button'); b.className='aimArrow pixel'; b.textContent=ARROW[dir];
+    const [L,T,TR]=place[dir]; b.style.left=L+'px'; b.style.top=T+'px'; b.style.transform=TR;
+    b.onmouseenter=()=>previewBeam(cell,dir); b.onmouseleave=clearRange;
+    b.onclick=()=>{ cancelAim(); commitMove({owner:ACT(),cell,pieceId:'ray',dir}); };
+    b.dataset.arrow='1'; boardEl.appendChild(b);
+  });
+  setStatus('ビームの<span class="a">向き</span>を選ぶ（もう一度マスを押すとキャンセル）。');
+  previewBeam(cell,'right');
+}
+function previewBeam(cell,dir){
+  const me=ACT();
+  clearRange();
+  rangeCells(cell,'ray',dir).forEach(t=>{ const c=boardEl.children[t]; c.classList.add('range');
+    if(!state.locked[t]&&(state.board[t]==='N'||state.board[t]===other(me))) c.classList.add('hit'); });
+}
+function cancelAim(){
+  state.aiming=null;
+  [...boardEl.querySelectorAll('[data-arrow]')].forEach(a=>a.remove());
+  [...boardEl.children].forEach(c=>c.classList.remove('aim'));
+  clearRange();
+}
+function commitMove(human){
+  if(gameMode==='online'){ netCommit(human); return; }
+  if(gameMode==='hot'){
+    if(state.cur==='P'){
+      state.pending=human; state.selected=null; cancelAim(); clearRange();
+      [...chipsEl.children].forEach(c=>c.classList.remove('sel')); render();
+      handoff('C', ()=>beginInput('C'));
+    } else {
+      const moves=[state.pending, human]; state.pending=null; play(moves);
+    }
+    return;
+  }
+  const cpu=chooseCPU(state.board,state.locked);
+  play(cpu?[human,cpu]:[human]);
+}
+function beginInput(owner){
+  state.cur=owner; state.phase='select'; state.selected=null; cancelAim(); clearRange();
+  [...chipsEl.children].forEach(c=>c.classList.remove('sel'));
+  $('#chiphint').innerHTML='コマをタップすると効果と範囲（マゼンタ）が表示されます。';
+  if(gameMode==='hot'){ $('#metaTurn').style.display=''; $('#dealer').textContent=PNAME(owner); $('#dealer').style.color=owner==='P'?'var(--you)':'var(--cpu)'; }
+  render();
+  const ac=owner==='P'?'y':'c';
+  setStatus(`<span class="${ac}">${PNAME(owner)}</span>：コマを選んで、中立か自分のマスに<b>秘密で</b>置く。`);
+}
+function handoff(owner, cb){
+  if(gameMode!=='hot'){ cb(); return; }
+  const ho=$('#handoff'), isP=owner==='P', col=isP?'var(--you)':'var(--cpu)';
+  ho.innerHTML=`<div class="card"><div class="who" style="color:${col}">${isP?'プレイヤー1（金）':'プレイヤー2（シアン）'}</div><h2 style="color:${col}">あなたの番</h2><p>相手は画面を見ないでください。<br>準備ができたらタップして、手を秘密で選びます。</p><button id="hoBtn">手を選ぶ</button></div>`;
+  ho.classList.add('on');
+  $('#hoBtn').onclick=()=>{ ho.classList.remove('on'); audio(); sfx('click'); cb(); };
+}
+function startRoundInput(){
+  if(gameMode==='hot'){ handoff('P', ()=>beginInput('P')); }
+  else { state.cur='P'; $('#metaTurn').style.display='none'; render(); setStatus('コマを選んで、中立か自分のマスに置こう。'); }
+}
+
+function slotLadder(moves,wasted){
+  [...ladderEl.querySelectorAll('.slot')].forEach(s=>s.innerHTML='');
+  ladderEl.querySelectorAll('.rung').forEach(r=>r.classList.remove('lit'));
+  moves.forEach(m=>{
+    const row=ladderEl.querySelector(`.rung[data-pr="${PIECES[m.pieceId].pr}"]`);
+    const slot=row.querySelector(`.slot[data-side="${m.owner}"]`);
+    const w=wasted.includes(m), arr=m.pieceId==='ray'&&m.dir?ARROW[m.dir]:'';
+    slot.innerHTML=`<span class="chipmini pixel ${w?'wasted':''}">${PIECES[m.pieceId].name}${arr}</span>`;
+  });
+}
+function badge(cell,text,cls){
+  const c=boardEl.children[cell]; const t=document.createElement('div'); t.className='tagx pixel '+(cls||''); t.textContent=text; c.appendChild(t);
+  setTimeout(()=>t.remove(), reduce?300:1100);
+}
+function lockEffect(cell){
+  if(reduce) return;
+  const c=boardEl.children[cell]; const fx=document.createElement('div'); fx.className='lockfx';
+  let sp=''; for(let i=0;i<8;i++) sp+='<s style="--a:'+(i*45)+'deg"></s>';
+  fx.innerHTML='<i></i><i></i><b></b>'+sp; c.appendChild(fx);
+  const st=document.createElement('div'); st.className='stamp';
+  st.innerHTML='<svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="17" fill="none" stroke="#ffe7b0" stroke-width="1.6"/><circle cx="20" cy="20" r="13" fill="none" stroke="#ffe7b0" stroke-width="0.8"/><text x="20" y="24" text-anchor="middle" font-family="Cinzel,serif" font-weight="700" font-size="10" fill="#ffe7b0">SPQR</text></svg>';
+  c.appendChild(st);
+  setTimeout(()=>{fx.remove(); st.remove();}, 760);
+}
+function rippleFx(cell, owner){
+  if(reduce) return;
+  const c=boardEl.children[cell]; const r=document.createElement('div'); r.className='ripple';
+  r.style.setProperty('--rc', owner==='P'?'#ffd596':owner==='C'?'#8fe9e3':'#fff');
+  c.appendChild(r); setTimeout(()=>r.remove(), 520);
+}
+function fireFx(cell, owner){
+  if(reduce) return;
+  const c=boardEl.children[cell]; const f=document.createElement('div'); f.className='firefx';
+  f.style.setProperty('--fc', owner==='P'?'var(--you)':owner==='C'?'var(--cpu)':'var(--accent)');
+  c.appendChild(f); setTimeout(()=>f.remove(), 470);
+}
+function stealFx(cell){
+  if(reduce) return;
+  const c=boardEl.children[cell]; const s=c.querySelector('.stone');
+  if(s){ s.classList.remove('spin'); void s.offsetWidth; s.classList.add('spin'); }
+  const f=document.createElement('div'); f.className='stealfx'; c.appendChild(f); setTimeout(()=>f.remove(), 560);
+}
+function comboBeam(cells,color){
+  if(reduce) return;
+  const ns='http://www.w3.org/2000/svg';
+  const svg=document.createElementNS(ns,'svg'); svg.setAttribute('class','combobeam');
+  const pts=cells.map(i=>{const el=boardEl.children[i]; return (el.offsetLeft+el.offsetWidth/2)+','+(el.offsetTop+el.offsetHeight/2);}).join(' ');
+  const pl=document.createElementNS(ns,'polyline'); pl.setAttribute('points',pts);
+  if(color){ pl.style.stroke=color; pl.style.filter='drop-shadow(0 0 6px '+color+')'; }
+  svg.appendChild(pl); boardEl.appendChild(svg); setTimeout(()=>svg.remove(), 860);
+}
+function reflectFx(rayCell, dir){
+  if(reduce) return;
+  const wrap=boardEl.parentElement;
+  comboBeam([rayCell].concat(rangeCells(rayCell,'ray',dir||'right')), '#d98bff');
+  const b=document.createElement('div'); b.className='combo reflect'; b.innerHTML='反射！'; wrap.appendChild(b); setTimeout(()=>b.remove(),1150);
+  const fl=document.createElement('div'); fl.className='boardflash reflect'; wrap.appendChild(fl); setTimeout(()=>fl.remove(),560);
+}
+function comboLock(originCell, cells){
+  const oc=originCell%SIZE, orr=(originCell/SIZE|0);
+  const ordered=cells.slice().sort((a,b)=>(Math.abs(a%SIZE-oc)+Math.abs((a/SIZE|0)-orr))-(Math.abs(b%SIZE-oc)+Math.abs((b/SIZE|0)-orr)));
+  if(reduce){ return; }
+  ordered.forEach((t,i)=> setTimeout(()=>lockEffect(t), i*80));
+  comboBeam([originCell].concat(ordered));
+  const n=cells.length, wrap=boardEl.parentElement;
+  const label = n>=4?'大封印':n>=3?'連封':'確定';
+  const b=document.createElement('div'); b.className='combo';
+  b.innerHTML=label+' <span class="n">×'+n+'</span>'; wrap.appendChild(b); setTimeout(()=>b.remove(), 1100);
+  if(n>=3){ const fl=document.createElement('div'); fl.className='boardflash'; wrap.appendChild(fl); setTimeout(()=>fl.remove(), 520); }
+}
+function toRoman(n){ const r=['','I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII']; return r[n]||String(n); }
+async function revealPhase(moves){
+  const els=[];
+  moves.forEach(m=>{
+    const c=boardEl.children[m.cell];
+    const fill=m.pieceId==='anchor'?' fill':'';
+    const oc=m.owner==='P'?'you':'cpu';
+    const dir=(m.pieceId==='ray'&&m.dir)?'<div class="dir">'+ARROW[m.dir]+'</div>':'';
+    const d=document.createElement('div'); d.className='commit';
+    d.innerHTML='<div class="flip"><div class="face back"></div><div class="face front '+oc+'"><div class="emb'+fill+'">'+EMBLEM[m.pieceId]+'</div>'+dir+'</div></div>';
+    c.appendChild(d); els.push(d);
+  });
+  sfx('commit');
+  await wait(reduce?120:1050);
+  els.forEach(d=>d.classList.add('open')); sfx('reveal');
+  await wait(reduce?80:780);
+  els.forEach(d=>d.remove());
+}
+
+async function play(moves){
+  state.phase='resolving'; state.selected=null; cancelAim();
+  [...chipsEl.children].forEach(c=>c.classList.remove('sel')); clearRange();
+
+  let res;
+  if(moves.length===2){ res=resolveTurn(state.board, state.locked, moves); }
+  else { const nb=state.board.slice(), nl=state.locked.slice(); const m=moves[0]; const re=nb[m.cell]===m.owner; nb[m.cell]=m.owner; if(re||m.pieceId==='anchor')nl[m.cell]=true; const r=paint(nb,nl,m,re); res={board:nb,locked:nl,survivors:[m],wasted:[],events:[{type:'paint',owner:m.owner,resolvedOwner:nb[m.cell],cell:m.cell,pieceId:m.pieceId,paints:r.claimed,locks:r.locks}]}; }
+
+  const preLocked=state.locked.slice();
+  const you=moves.find(m=>m.owner==='P'), cpu=moves.find(m=>m.owner==='C');
+  slotLadder(moves, res.wasted);
+  setStatus('見せ合い —— 両者の手が明かされる。');
+  await revealPhase(moves);
+  setStatus(cpu? `両者オープン。<span class="y">${PIECES[you.pieceId].name}</span> と <span class="c">${PIECES[cpu.pieceId].name}</span>。`
+               : `相手は置けるマスが無く今回はパス。`);
+
+  if(res.survivors.length) sfx('place');
+  res.survivors.forEach(m=>{
+    state.board[m.cell]=m.owner; state.origin[m.cell]=m.pieceId;
+    if(m.pieceId==='anchor'){ state.locked[m.cell]=true; }
+    paintStone(m.cell,true);
+    if(m.pieceId==='anchor'&&!preLocked[m.cell]){ badge(m.cell,'確定','lock'); lockEffect(m.cell); sfx('lock'); }
+  });
+  res.wasted.forEach(m=>badge(m.cell,'不発'));
+  await wait(reduce?180:680);
+
+  for(const ev of res.events){
+    if(ev.type==='paint'){
+      const row=ladderEl.querySelector(`.rung[data-pr="${PIECES[ev.pieceId].pr}"]`); if(row)row.classList.add('lit');
+      const cell=boardEl.children[ev.cell]; cell.classList.add('firing'); fireFx(ev.cell, ev.resolvedOwner||ev.owner); sfx(ev.reflected?'reflect':'fire');
+      if(ev.reflected){ badge(ev.cell,'反射！','reflect'); stealFx(ev.cell); reflectFx(ev.cell, ev.dir); }
+      else if(ev.stolen){ badge(ev.cell,'寝返り'); stealFx(ev.cell); sfx('steal'); }
+      await wait(reduce?100:340);
+      ev.paints.forEach(t=>{ state.board[t]=ev.resolvedOwner||ev.owner; state.origin[t]=null; paintStone(t,true); rippleFx(t, ev.resolvedOwner||ev.owner); });
+      let combo=false;
+      if(ev.locks&&ev.locks.length){
+        ev.locks.forEach(t=>{ state.locked[t]=true; paintStone(t,true); });
+        if(ev.locks.length>=2){ comboLock(ev.cell, ev.locks); combo=true; sfx('combo'); }
+        else { lockEffect(ev.locks[0]); badge(ev.locks[0],'確定','lock'); sfx('lock'); }
+      }
+      await wait(reduce?100:(combo?660:430));
+      if(row)row.classList.remove('lit'); cell.classList.remove('firing');
+    } else if(ev.type==='neutralize'){
+      ev.cells.forEach(t=>{ state.board[t]='N'; state.origin[t]=null; paintStone(t,true); });
+      if(ev.cells.length) badge(ev.cells[0],'中和','neu');
+      await wait(reduce?120:450);
+    } else if(ev.type==='annihilate'){
+      ev.cells.forEach(t=>{ state.board[t]='N'; state.locked[t]=false; state.origin[t]=null; paintStone(t,true); }); badge(ev.cells[0],'中和','neu');
+      await wait(reduce?120:450);
+    }
+  }
+  state.board=res.board.slice(); state.locked=res.locked.slice();
+  updateScores();
+
+  if(state.round>=ROUNDS) return end();
+  state.round++; state.phase='select';
+  render(); updateScores();
+  if(gameMode==='online'){ net.resolving=false; netBeginRound(); }
+  else startRoundInput();
+}
+
+function end(){
+  state.phase='over';
+  const y=state.board.filter(x=>x==='P').length, c=state.board.filter(x=>x==='C').length;
+  const t=$('#resTitle'), s=$('#resSub');
+  if(gameMode==='online'){
+    const win = y>c?'P':c>y?'C':null;
+    if(!win){ t.textContent='引き分け'; t.style.color='var(--ink)'; sfx('tie'); }
+    else if(win===net.side){ t.textContent='あなたの勝ち'; t.style.color=net.side==='P'?'var(--you)':'var(--cpu)'; sfx('win'); }
+    else { t.textContent='相手の勝ち'; t.style.color=net.side==='P'?'var(--cpu)':'var(--you)'; sfx('lose'); }
+    $('#again').textContent='もう一度（再戦）';
+  } else {
+    const nP=gameMode==='hot'?'プレイヤー1（金）':'あなた', nC=gameMode==='hot'?'プレイヤー2（シアン）':'CPU';
+    if(y>c){ t.textContent=nP+'の勝ち'; t.style.color='var(--you)'; sfx('win'); }
+    else if(c>y){ t.textContent=nC+'の勝ち'; t.style.color='var(--cpu)'; sfx(gameMode==='hot'?'win':'lose'); }
+    else{ t.textContent='引き分け'; t.style.color='var(--ink)'; sfx('tie'); }
+    $('#again').textContent='もう一度';
+  }
+  s.textContent=`${y} – ${c}`; $('#overlay').classList.add('on');
+}
+function newGame(){
+  state={ board:Array(CELLS).fill('N'), locked:Array(CELLS).fill(false), origin:Array(CELLS).fill(null), selected:null, aiming:null, phase:'select', round:1, dealer:'P', cur:'P', pending:null };
+  $('#overlay').classList.remove('on'); $('#handoff').classList.remove('on');
+  [...boardEl.querySelectorAll('[data-arrow]')].forEach(a=>a.remove());
+  buildLadder(); render(); updateScores();
+  $('#chiphint').innerHTML='コマをタップすると効果と範囲（マゼンタ）が表示されます。';
+  startRoundInput();
+}
+function setMode(m){
+  if(gameMode==='online' && m!=='online') netLeave();
+  gameMode=m;
+  $('#mode').textContent = m==='hot'?'対2人':m==='online'?'オンライン':'対CPU';
+  $('#lblYou').textContent = m==='hot'?'P1':m==='online'?'あなた':'YOU';
+  $('#lblCpu').textContent = m==='hot'?'P2':m==='online'?'相手':'CPU';
+  if(m==='online'){ openLobby(); } else { newGame(); }
+}
+
+/* ---------------- オンライン（Firebase） ---------------- */
+function genCode(){ const a='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s=''; for(let i=0;i<4;i++) s+=a[Math.floor(Math.random()*a.length)]; return s; }
+async function netInit(){
+  if(net.app) return true;
+  if(typeof firebase==='undefined' || String(FIREBASE_CONFIG.apiKey).indexOf('PASTE')>=0){
+    $('#lbMsg').innerHTML='<span style="color:var(--accent)">Firebase未設定。コード冒頭の FIREBASE_CONFIG を自分のプロジェクトの値に置き換えてください。</span>'; return false;
+  }
+  try{
+    net.app=firebase.initializeApp(FIREBASE_CONFIG);
+    net.db=firebase.database(); net.auth=firebase.auth();
+    const cred=await net.auth.signInAnonymously(); net.uid=cred.user.uid; return true;
+  }catch(e){ $('#lbMsg').textContent='接続エラー: '+e.message; return false; }
+}
+function openLobby(){
+  const lo=$('#lobby');
+  lo.innerHTML=`<div class="card">
+    <div class="who" style="color:var(--you)">ONLINE</div>
+    <h2>友達と対戦</h2>
+    <p>部屋を作ってコードを友達に送る、<br>またはもらったコードで参加。</p>
+    <button id="lbCreate">部屋を作る</button>
+    <div class="or">— または —</div>
+    <input id="lbCode" placeholder="コード" maxlength="4" autocomplete="off"><br>
+    <button id="lbJoin">参加する</button><br>
+    <button id="lbCancel" class="ghost">やめる</button>
+    <p id="lbMsg"></p>
+  </div>`;
+  lo.classList.add('on');
+  $('#lbCreate').onclick=createRoom;
+  $('#lbJoin').onclick=()=>joinRoom(($('#lbCode').value||'').trim().toUpperCase());
+  $('#lbCancel').onclick=()=>{ lo.classList.remove('on'); setMode('cpu'); };
+}
+async function createRoom(){
+  if(!await netInit()) return;
+  $('#lbMsg').textContent='部屋を作成中…';
+  const code=genCode();
+  net.room=code; net.side='P'; net.gen=1; net.roomRef=net.db.ref('rooms/'+code);
+  await net.roomRef.child('meta').set({host:net.uid, status:'waiting', ts:firebase.database.ServerValue.TIMESTAMP});
+  await net.roomRef.child('gen').set(1);
+  await net.roomRef.child('players/P').set({uid:net.uid, connected:true});
+  net.roomRef.child('players/P/connected').onDisconnect().set(false);
+  $('#lbMsg').innerHTML='コード <b style="font-size:26px;color:var(--you);letter-spacing:3px">'+code+'</b><br>友達に伝えて待機中…';
+  net.roomRef.child('players/C/uid').on('value',snap=>{ if(snap.exists()){ net.roomRef.child('players/C/uid').off(); startOnline(); } });
+}
+async function joinRoom(code){
+  if(!code){ $('#lbMsg').textContent='コードを入力してください。'; return; }
+  if(!await netInit()) return;
+  $('#lbMsg').textContent='参加中…';
+  net.roomRef=net.db.ref('rooms/'+code);
+  const meta=await net.roomRef.child('meta').get();
+  if(!meta.exists()){ $('#lbMsg').textContent='その部屋は見つかりません。'; return; }
+  const pc=await net.roomRef.child('players/C/uid').get();
+  if(pc.exists()){ $('#lbMsg').textContent='その部屋は満員です。'; return; }
+  const gs=await net.roomRef.child('gen').get();
+  net.room=code; net.side='C'; net.gen=gs.exists()?gs.val():1;
+  await net.roomRef.child('players/C').set({uid:net.uid, connected:true});
+  net.roomRef.child('players/C/connected').onDisconnect().set(false);
+  startOnline();
+}
+function startOnline(){
+  $('#lobby').classList.remove('on');
+  gameMode='online';
+  $('#lblYou').textContent = net.side==='P'?'あなた':'相手';
+  $('#lblCpu').textContent = net.side==='P'?'相手':'あなた';
+  // rematch sync
+  net.roomRef.child('gen').on('value',s=>{ const g=s.exists()?s.val():1; if(g!==net.gen){ net.gen=g; netResetGame(); } });
+  // opponent disconnect notice
+  const opp=net.side==='P'?'C':'P';
+  net.roomRef.child('players/'+opp+'/connected').on('value',s=>{ if(s.val()===false && state.phase!=='over') setStatus('<span class="a">相手が切断したかも…（再戦は新しい部屋で）</span>'); });
+  netResetGame();
+}
+function netResetGame(){
+  if(net.turnRef){ net.turnRef.off(); net.turnRef=null; }
+  state={ board:Array(CELLS).fill('N'), locked:Array(CELLS).fill(false), origin:Array(CELLS).fill(null), selected:null, aiming:null, phase:'select', round:1, dealer:'P', cur:net.side, pending:null };
+  net.resolving=false;
+  $('#overlay').classList.remove('on');
+  [...boardEl.querySelectorAll('[data-arrow]')].forEach(a=>a.remove());
+  buildLadder(); render(); updateScores();
+  $('#metaTurn').style.display=''; $('#dealer').textContent=net.side==='P'?'あなた=金':'あなた=シアン'; $('#dealer').style.color=net.side==='P'?'var(--you)':'var(--cpu)';
+  $('#chiphint').innerHTML='コマをタップすると効果と範囲（マゼンタ）が表示されます。';
+  netBeginRound();
+}
+function netBeginRound(){
+  state.phase='select'; state.selected=null; cancelAim(); clearRange();
+  [...chipsEl.children].forEach(c=>c.classList.remove('sel')); render();
+  const isP=net.side==='P', ac=isP?'y':'c';
+  setStatus(`<span class="${ac}">あなた（${isP?'金':'シアン'}）</span>：コマを選んで、中立か自分のマスに<b>秘密で</b>置く。`);
+  const rref=net.roomRef.child('g/'+net.gen+'/round/'+state.round);
+  net.turnRef=rref.child('turn');
+  net.turnRef.on('value',snap=>{
+    const t=snap.val()||{};
+    if(t.P===true && t.C===true){
+      net.turnRef.off(); net.turnRef=null;
+      const finish=v=>{ if(v && v.P && v.C){ rref.child('play').off(); netResolve([v.P,v.C]); } };
+      rref.child('play').get().then(ps=>{ const v=ps.val()||{}; if(v.P&&v.C) finish(v); else rref.child('play').on('value',s2=>finish(s2.val()||{})); });
+    }
+  });
+}
+function netCommit(move){
+  state.phase='waiting'; state.selected=null; cancelAim(); clearRange();
+  [...chipsEl.children].forEach(c=>c.classList.remove('sel')); render();
+  const ac=net.side==='P'?'y':'c';
+  setStatus('手を送信。<span class="'+ac+'">相手の手を待っています…</span>');
+  const rref=net.roomRef.child('g/'+net.gen+'/round/'+state.round);
+  const upd={}; upd['play/'+net.side]={pieceId:move.pieceId, cell:move.cell, dir:move.dir||null}; upd['turn/'+net.side]=true;
+  rref.update(upd).catch(e=> setStatus('<span class="a">送信エラー: '+e.message+'</span>'));
+}
+function netResolve(moves){
+  if(net.resolving) return; net.resolving=true;
+  const mk=(o,m)=>({owner:o, cell:m.cell, pieceId:m.pieceId, dir:m.dir||undefined});
+  play([mk('P',moves[0]), mk('C',moves[1])]);
+}
+function netRematch(){ if(net.roomRef) net.roomRef.child('gen').transaction(g=>(g||1)+1); }
+function netLeave(){
+  try{
+    if(net.turnRef){ net.turnRef.off(); net.turnRef=null; }
+    if(net.roomRef){ net.roomRef.child('gen').off(); if(net.side) net.roomRef.child('players/'+net.side+'/connected').set(false);
+      const opp=net.side==='P'?'C':'P'; net.roomRef.child('players/'+opp+'/connected').off(); }
+  }catch(e){}
+  net.room=null; net.side=null; net.roomRef=null; net.resolving=false;
+  $('#lobby').classList.remove('on'); $('#metaTurn').style.display='none';
+}
+
+$('#reset').onclick=()=>{ if(gameMode==='online') setMode('cpu'); else newGame(); };
+$('#again').onclick=()=>{ if(gameMode==='online') netRematch(); else newGame(); };
+$('#mode').onclick=()=>{ audio(); sfx('click'); const o=['cpu','hot','online']; setMode(o[(o.indexOf(gameMode)+1)%3]); };
+$('#snd').onclick=()=>{ muted=!muted; $('#snd').textContent=muted?'🔇':'🔊'; if(!muted){ audio(); sfx('click'); } };
+buildChips(); buildBoard(); buildLadder(); newGame();
+</script>
+</body>
+</html>
